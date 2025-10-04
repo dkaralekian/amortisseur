@@ -336,12 +336,3 @@ if not analysis_df.empty:
     margin=(y_max-y_min)*0.1; ax3.set_ylim(bottom=max(0,y_min-margin),top=y_max+margin)
 fig_final.tight_layout()
 st.pyplot(fig_final)
-st.markdown("""
-**Interprétation Corrigée :**
-Les graphiques montrent un comportement contre-intuitif mais physiquement correct. On observe deux effets concurrents lorsque `ρ` augmente :
-1.  **L'Effet Force** : Un `ρ` plus grand diminue la force `F_max` nécessaire, ce qui tend à réduire les diamètres.
-2.  **L'Effet Souplesse** : Un `ρ` plus grand impose une raideur linéaire `K₁` beaucoup plus faible. Pour une longueur `L` donnée, atteindre une très faible raideur exige un rapport `D_ext / d_int` très grand, donc une **épaisseur `ep` très importante**.
-Pour les faibles valeurs de `ρ`, l'effet "Force" domine. Mais rapidement, **l'effet "Souplesse" devient prépondérant**. La nécessité d'être extrêmement "mou" (faible `K₁`) impose des épaisseurs et des diamètres qui augmentent de façon exponentielle, faisant ainsi augmenter le volume.
-**Conclusion :** Pour une longueur `L` donnée, il existe un **bras de levier `ρ` optimal qui minimise le volume de l'amortisseur**. Ce n'est ni le plus petit, ni le plus grand. Le minimum de la courbe verte vous indique la conception la plus efficace en termes de masse pour la longueur `L` choisie.
-""")
-#</editor-fold>
