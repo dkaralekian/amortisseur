@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # CONFIGURATION DE LA PAGE ET DONNÉES DE BASE
 # ==============================================================================
 st.set_page_config(layout="wide", page_title="Outil Comparatif de Dimensionnement")
-st.title("Dimensionnement de l'amortisseur de traînée")
+st.title("Carnet de Calcul Interactif : Amortisseur de Traînée")
 
 HELICOPTER_PARAMS = {
     'G5': {'Omega_rpm': 404, 'ms': 40.0, 'Ip': 125.0, 'e': 0.166, 'b': 4, 
@@ -139,9 +139,6 @@ with col3:
     st.pyplot(fig_kg)
 st.markdown("---")
 
-# ==============================================================================
-# LE RESTE DU SCRIPT EST INCHANGÉ
-# ==============================================================================
 st.header("Phase 2: Définition Géométrique")
 col_geo1, col_geo2 = st.columns(2)
 with col_geo1:
@@ -204,24 +201,38 @@ for r in rho_analyse_values:
     delta_L_max = delta_L_max_mm_base * (r / rho_base)
     F_max = delta_L_max * K1_req
     d_int = F_max / (np.pi * L_etude * tau_adm_mpa)
+    # Logarithmique
     D_ext_log = d_int * np.exp((2*np.pi*G_mpa*L_etude)/K1_req)
     ep_log = (D_ext_log - d_int) / 2
     vol_log = (np.pi/4 * (D_ext_log**2 - d_int**2) * L_etude) / 1000
-    analysis_results.append({ "rho": r, "ep_log": ep_log, "D_ext_log": D_ext_log, "Volume_cm3_log": vol_log})
+    # Diamètre Moyen
+    num_moy, den_moy = K1_req + G_mpa*np.pi*L_etude, K1_req - G_mpa*np.pi*L_etude
+    if den_moy > 0:
+        D_ext_moy = d_int * num_moy / den_moy
+        ep_moy = (D_ext_moy - d_int) / 2
+        vol_moy = (np.pi/4 * (D_ext_moy**2 - d_int**2) * L_etude) / 1000
+    else: ep_moy, D_ext_moy, vol_moy = np.nan, np.nan, np.nan
+    analysis_results.append({ "rho": r, "ep_log": ep_log, "D_ext_log": D_ext_log, "Volume_cm3_log": vol_log, "ep_moy": ep_moy, "D_ext_moy": D_ext_moy, "Volume_cm3_moy": vol_moy})
 analysis_df = pd.DataFrame(analysis_results).dropna()
 
 st.subheader("3.2: Graphiques d'influence de $\\rho$")
 fig_final, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 15), sharex=True)
-ax1.plot(analysis_df['rho'], analysis_df['ep_log'], '-', label=f'{selected_heli}')
-ax2.plot(analysis_df['rho'], analysis_df['D_ext_log'], '-', label=f'{selected_heli}')
-ax3.plot(analysis_df['rho'], analysis_df['Volume_cm3_log'], '-', label=f'{selected_heli}')
+ax1.plot(analysis_df['rho'], analysis_df['ep_log'], 'b-', label='Modèle Logarithmique')
+ax1.plot(analysis_df['rho'], analysis_df['ep_moy'], 'b--', label='Modèle Diamètre Moyen')
+ax2.plot(analysis_df['rho'], analysis_df['D_ext_log'], 'r-', label='Modèle Logarithmique')
+ax2.plot(analysis_df['rho'], analysis_df['D_ext_moy'], 'r--', label='Modèle Diamètre Moyen')
+ax3.plot(analysis_df['rho'], analysis_df['Volume_cm3_log'], 'g-', label='Modèle Logarithmique')
+ax3.plot(analysis_df['rho'], analysis_df['Volume_cm3_moy'], 'g--', label='Modèle Diamètre Moyen')
+
 ax1.set_ylabel("Épaisseur ep (mm)"); ax1.set_title(f"Impact de ρ (pour L = {L_etude} mm)"); ax1.grid(True); ax1.legend()
 ax2.set_ylabel("Diamètre extérieur D_ext (mm)"); ax2.grid(True); ax2.legend()
 ax3.set_ylabel("Volume d'élastomère (cm³)"); ax3.set_xlabel("Bras de levier, ρ (m)"); ax3.grid(True); ax3.legend()
-for ax, col_name in [(ax1, 'ep_log'), (ax2, 'D_ext_log'), (ax3, 'Volume_cm3_log')]:
+
+for ax, cols in [(ax1, ['ep_log', 'ep_moy']), (ax2, ['D_ext_log', 'D_ext_moy']), (ax3, ['Volume_cm3_log', 'Volume_cm3_moy'])]:
     if not analysis_df.empty:
-        y_min, y_max = analysis_df[col_name].min(), analysis_df[col_name].max()
+        y_min, y_max = analysis_df[cols].min().min(), analysis_df[cols].max().max()
         margin = (y_max - y_min) * 0.1
         ax.set_ylim(bottom=max(0, y_min - margin), top=y_max + margin)
+
 fig_final.tight_layout()
 st.pyplot(fig_final)
