@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 # CONFIGURATION DE LA PAGE ET DONNÉES DE BASE
 # ==============================================================================
 st.set_page_config(layout="wide", page_title="Outil Comparatif de Dimensionnement")
-st.title("Carnet de Calcul Interactif : Amortisseur de Traînée")
+st.title("Dimensionnement de l'amortisseur de traînée")
 
 HELICOPTER_PARAMS = {
     'G5': {'Omega_rpm': 404, 'ms': 40.0, 'Ip': 125.0, 'e': 0.166, 'b': 4, 
