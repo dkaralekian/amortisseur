@@ -6,22 +6,26 @@ import json
 from datetime import datetime
 
 # ==============================================================================
-# CONFIGURATION DE LA PAGE ET DONNÉES DE BASE
+# CONFIGURATION DE LA PAGE ET GESTION DES DONNÉES
 # ==============================================================================
-st.set_page_config(layout="wide", page_title="Outil Comparatif de Dimensionnement")
+st.set_page_config(layout="wide", page_title="Calculateur Principal")
 st.title("Dimensionnement de l'amortisseur de traînée")
 
-HELICOPTER_PARAMS = {
-    'G5': {'Omega_rpm': 404, 'ms': 40.0, 'Ip': 125.0, 'e': 0.166, 'b': 4, 
-           'coords': {'B': "0.166, 0.003, 0", 'P': "0.372, 0.003, 0", 'M': "0.141, 0.147, 0", 'A_local': "0.203, 0.079, 0"}},
-    'G2': {'Omega_rpm': 530, 'ms': 23.6, 'Ip': 56.2, 'e': 0.154, 'b': 3, 
-           'coords': {'B': "0.154, 0, 0", 'P': "0.350, 0, 0", 'M': "0.130, 0.130, 0", 'A_local': "0.190, 0.060, 0"}},
-    'EC120': {'Omega_rpm': 408, 'ms': 35.0, 'Ip': 110.0, 'e': 0.160, 'b': 3, 
-              'coords': {'B': "0.160, 0.01, 0", 'P': "0.360, 0.01, 0", 'M': "0.135, 0.140, 0", 'A_local': "0.195, 0.070, 0"}},
-}
-
-# --- FONCTIONS DE SAUVEGARDE / CHARGEMENT ---
+DB_FILE = "helicopters.json"
 SESSION_FILE = "sessions.json"
+
+def load_helicopter_db():
+    try:
+        with open(DB_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {
+            'G5': {'Omega_rpm': 404, 'ms': 40.0, 'Ip': 125.0, 'e': 0.166, 'b': 4, 'coords': {'B': "0.166,0.003,0", 'P': "0.372,0.003,0", 'M': "0.141,0.147,0", 'A_local': "0.203,0.079,0"}},
+            'G2': {'Omega_rpm': 530, 'ms': 23.6, 'Ip': 56.2, 'e': 0.154, 'b': 3, 'coords': {'B': "0.154,0,0", 'P': "0.350,0,0", 'M': "0.130,0.130,0", 'A_local': "0.190,0.060,0"}},
+            'EC120': {'Omega_rpm': 408, 'ms': 35.0, 'Ip': 110.0, 'e': 0.160, 'b': 3, 'coords': {'B': "0.160,0.01,0", 'P': "0.360,0.01,0", 'M': "0.135,0.140,0", 'A_local': "0.195,0.070,0"}},
+        }
+
+HELICOPTER_PARAMS = load_helicopter_db()
 
 def load_sessions():
     try:
@@ -38,7 +42,6 @@ def save_session(state_dict):
         json.dump(sessions, f, indent=4)
     return timestamp
 
-# Clés de tous les widgets à sauvegarder
 STATE_KEYS = [
     'selected_heli', 'Omega_rpm', 'ms', 'Ip', 'e', 'b', 
     'phi_deg', 'omega_delta_bar', 'f_fuselage',
@@ -46,9 +49,7 @@ STATE_KEYS = [
     'G_mpa', 'tau_adm_mpa', 'L_etude'
 ]
 
-# Initialisation de l'état
 if 'initialized' not in st.session_state:
-    # Initialisation avec les valeurs par défaut du G5
     default_heli = 'G5'
     st.session_state.selected_heli = default_heli
     st.session_state.Omega_rpm = HELICOPTER_PARAMS[default_heli]['Omega_rpm']
@@ -69,9 +70,25 @@ if 'initialized' not in st.session_state:
     st.session_state.L_etude = 80.0
     st.session_state.initialized = True
 
-# --- Fonctions d'affichage et de graphe (inchangées)
+def show_calculation(label, result_val, unit, generic_formula, numeric_formula, demo_mode):
+    display_val = ""
+    if isinstance(result_val, (int, float)):
+        if abs(result_val) > 1000: display_val = f"{result_val:,.0f}"
+        else:
+            display_val = f"{result_val:.4f}".rstrip('0').rstrip('.')
+            if display_val == "-0": display_val = "0"
+    else: display_val = str(result_val)
+    if demo_mode:
+        with st.container(border=True):
+            st.markdown(f"**{label}**")
+            st.latex(generic_formula)
+            st.markdown("**Application Numérique :**")
+            st.latex(numeric_formula)
+            st.markdown(f"<p style='text-align:right; font-weight:bold; font-size:1.1em;'>Résultat = <font color='#1079bd'>{display_val}</font> {unit}</p>", unsafe_allow_html=True)
+    else:
+        st.metric(label, f"{display_val} {unit}")
+
 def show_comparison_metric(label, values_dict, unit, main_item):
-    # ... (code de la fonction inchangé)
     st.markdown(f"**{label}**")
     cols = st.columns(len(values_dict))
     for i, (heli_name, value) in enumerate(values_dict.items()):
@@ -83,7 +100,6 @@ def show_comparison_metric(label, values_dict, unit, main_item):
                 st.metric(label=heli_name, value=f"{value} {unit}")
 
 def plot_kg_diagram(rotor_params, selected_phi_deg, operating_point, heli_name):
-    # ... (code de la fonction inchangé)
     e, Omega, Ip, ms = rotor_params
     op_point_omega_bar, op_point_sigma_bar = operating_point
     omega_delta_bar_grid, sigma_bar_grid = np.linspace(0.1, 1.2, 200), np.linspace(0, 0.10, 200)
@@ -117,7 +133,6 @@ def plot_kg_diagram(rotor_params, selected_phi_deg, operating_point, heli_name):
     return fig
 
 def plot_geometry(B, P, A_zero, Apt, M):
-    # ... (code de la fonction inchangé)
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.plot(A_zero[0], A_zero[1], 'k+', markersize=10, label='A à 0° (ref)')
     ax.plot([A_zero[0], M[0]], [A_zero[1], M[1]], 'k--', alpha=0.7, label='Amortisseur à 0°')
@@ -133,15 +148,12 @@ def plot_geometry(B, P, A_zero, Apt, M):
     ax.set_xlabel("Axe X (m)"); ax.set_ylabel("Axe Y (m)"); ax.set_title("Visualisation Géométrique 2D")
     ax.grid(True); ax.axis('equal'); ax.legend(fontsize='small')
     return fig
-# ==============================================================================
-# BARRE LATÉRALE DE CONFIGURATION
-# ==============================================================================
-st.sidebar.title("Configuration de la Simulation")
-demo_mode = st.sidebar.toggle("Afficher les démonstrations de calcul", value=True) # Conservé pour la compatibilité
-st.sidebar.markdown("---")
 
+st.sidebar.title("Configuration de la Simulation")
+demo_mode = st.sidebar.toggle("Afficher les démonstrations", value=True)
+st.sidebar.markdown("---")
 def update_heli_params():
-    params = HELICOPTER_PARAMS[st.session_state.selected_heli]
+    params = HELICOPTER_PARAMS[st.session_state.selected_heli_selector]
     st.session_state.Omega_rpm = params['Omega_rpm']
     st.session_state.ms = params['ms']
     st.session_state.Ip = params['Ip']
@@ -151,36 +163,31 @@ def update_heli_params():
     st.session_state.P_coords = params['coords']['P']
     st.session_state.M_coords = params['coords']['M']
     st.session_state.A_local_coords = params['coords']['A_local']
-
-st.sidebar.selectbox("1. Choisir l'hélicoptère de travail", list(HELICOPTER_PARAMS.keys()), key='selected_heli', on_change=update_heli_params)
+st.sidebar.selectbox("1. Choisir l'hélicoptère de travail", list(HELICOPTER_PARAMS.keys()), key='selected_heli_selector', on_change=update_heli_params)
 st.sidebar.subheader("2. Paramètres Rotor (éditables)")
 c1, c2 = st.sidebar.columns(2)
 with c1:
-    Omega_rpm = st.number_input("$\\Omega$ (tr/min)", key='Omega_rpm')
-    ms = st.number_input("$m_s$ (m.kg)", key='ms')
-    Ip = st.number_input("$I_p$ (m².kg)", key='Ip')
+    st.number_input("$\\Omega$ (tr/min)", key='Omega_rpm')
+    st.number_input("$m_s$ (m.kg)", key='ms')
+    st.number_input("$I_p$ (m².kg)", key='Ip')
 with c2:
-    e = st.number_input("$e$ (m)", key='e')
-    b = st.number_input("$b$ (pales)", key='b')
+    st.number_input("$e$ (m)", key='e')
+    st.number_input("$b$ (pales)", key='b')
 Omega_rad_s = -st.session_state.Omega_rpm * np.pi / 30
-
-# --- Chargement de session
-st.sidebar.markdown("---")
 sessions = load_sessions()
-session_list = ["Nouvelle session"] + sorted(sessions.keys(), reverse=True)
-
+session_list = ["-"] + sorted(sessions.keys(), reverse=True)
 def load_selected_session():
     session_key = st.session_state.session_selector
-    if session_key != "Nouvelle session":
-        for key, value in sessions[session_key].items():
-            st.session_state[key] = value
-
+    if session_key != "-":
+        loaded_state = sessions[session_key]
+        for key, value in loaded_state.items():
+            if key in st.session_state:
+                st.session_state[key] = value
 st.sidebar.selectbox("3. Charger une session", session_list, key="session_selector", on_change=load_selected_session)
 
-# ==============================================================================
-# PHASE 1: POINT DE FONCTIONNEMENT
-# ==============================================================================
 st.header("Phase 1: Choix du Point de Fonctionnement")
+# ... (le code de la Phase 1 est complet et correct)
+#<editor-fold desc="Phase 1">
 col1, col2, col3 = st.columns([1.5, 2, 2.5])
 with col1:
     st.subheader("1.1: Paramètres Adimensionnels")
@@ -190,17 +197,14 @@ with col1:
     C_phys = st.session_state.e * st.session_state.ms / st.session_state.Ip
     omega_delta_bar = st.slider("Fréquence propre, $\\bar{\\omega}_\\delta$", min_value=max(0.2, np.sqrt(C_phys) + 0.001), max_value=0.8, step=0.005, key='omega_delta_bar')
     f_fuselage = st.number_input("Fréquence fuselage, $f_{fus}$ (Hz)", key='f_fuselage')
-
 sigma_bar = (tan_phi * (st.session_state.omega_delta_bar**2 - C_phys)) / (2 * st.session_state.omega_delta_bar)
 beat_freq_hz = abs(abs(Omega_rad_s) * (1 - st.session_state.omega_delta_bar)) / (2 * np.pi)
 omega_c_percent = (st.session_state.f_fuselage + (st.session_state.omega_delta_bar * abs(Omega_rad_s) / (2*np.pi))) / (abs(Omega_rad_s) / (2*np.pi)) * 100
-
 with col2:
     st.subheader("1.2: Résultats Fréquentiels")
-    # MODIFIÉ: Correction de l'affichage LaTeX pour Omega_c
-    st.metric(label=f"$|f_n - f_\\delta|$ ({st.session_state.selected_heli})", value=f"{beat_freq_hz:.2f} Hz")
-    st.metric(label=f"$\\Omega_c$ (% $\\Omega_n$) ({st.session_state.selected_heli})", value=f"{omega_c_percent:.1f}")
-
+    if demo_mode: st.write(f"Pour **{st.session_state.selected_heli}**:")
+    st.metric(label=f"$|f_n - f_\\delta|$", value=f"{beat_freq_hz:.2f} Hz")
+    st.metric(label=f"$\\Omega_c$", value=f"{omega_c_percent:.1f} % $\\Omega_n$")
 st.markdown("##### Comparaison des Résultats")
 omega_cs = {}
 for name, params in HELICOPTER_PARAMS.items():
@@ -209,7 +213,6 @@ for name, params in HELICOPTER_PARAMS.items():
     f_nominal_h = heli_omega_rad / (2*np.pi)
     omega_cs[name] = (st.session_state.f_fuselage + f_delta_h) / f_nominal_h * 100
 show_comparison_metric("Fréquence de croisement $\\Omega_c$ (% $\\Omega_n$)", {k: f"{v:.1f}" for k, v in omega_cs.items()}, "", st.session_state.selected_heli)
-
 k_deltas, k2_deltas = {}, {}
 for name, params in HELICOPTER_PARAMS.items():
     heli_C = params['e'] * params['ms'] / params['Ip']
@@ -218,17 +221,16 @@ for name, params in HELICOPTER_PARAMS.items():
 show_comparison_metric("Raideur Angulaire $K_\\delta$ (Nm/rad)", {k: f"{v:,.0f}" for k, v in k_deltas.items()}, "", st.session_state.selected_heli)
 show_comparison_metric("Amortissement Angulaire $K_{2\\delta}$ (Nm/rad)", {k: f"{v:,.0f}" for k, v in k2_deltas.items()}, "", st.session_state.selected_heli)
 st.session_state['K_delta_current'] = k_deltas[st.session_state.selected_heli]
-
 with col3:
     st.subheader("1.3: Diagramme K-G")
     fig_kg = plot_kg_diagram((st.session_state.e, abs(Omega_rad_s), st.session_state.Ip, st.session_state.ms), st.session_state.phi_deg, (st.session_state.omega_delta_bar, sigma_bar), st.session_state.selected_heli)
     st.pyplot(fig_kg)
 st.markdown("---")
+#</editor-fold>
 
-# ==============================================================================
-# PHASE 2: GÉOMÉTRIE
-# ==============================================================================
 st.header("Phase 2: Définition Géométrique")
+# ... (le code de la Phase 2 est complet et correct)
+#<editor-fold desc="Phase 2">
 col_geo1, col_geo2 = st.columns(2)
 with col_geo1:
     st.subheader("2.1: Définition des Points (éditable)")
@@ -243,8 +245,7 @@ with col_geo1:
         st.error("Format de coordonnées invalide."); st.stop()
     alpha_rad = np.radians(st.session_state.alpha_deg)
     Apt = (np.array([[np.cos(alpha_rad),-np.sin(alpha_rad),0],[np.sin(alpha_rad),np.cos(alpha_rad),0],[0,0,1]]) @ A_local) + B
-
-    st.markdown("##### Comparaison des Résultats Géométriques")
+    st.markdown("##### Comparaison Géométrique")
     rhos, k1s = {}, {}
     for name, params in HELICOPTER_PARAMS.items():
         h_coords = params['coords']
@@ -254,68 +255,128 @@ with col_geo1:
         k1s[name] = k_deltas[name] / rhos[name]**2 / 1000 if rhos[name] > 0 else 0
     show_comparison_metric("Bras de levier $\\rho$", {k: f"{v:.3f}" for k, v in rhos.items()}, "m", st.session_state.selected_heli)
     show_comparison_metric("Raideur Linéaire $K_1$", {k: f"{v:,.0f}" for k, v in k1s.items()}, "N/mm", st.session_state.selected_heli)
-
 with col_geo2:
-    st.subheader("2.2: Visualisation Géométrique")
+    st.subheader("2.2: Visualisation")
     fig_geo = plot_geometry(B, P, B + A_local, Apt, M)
     st.pyplot(fig_geo)
 st.markdown("---")
+#</editor-fold>
 
 # ==============================================================================
-# PHASE 3: DIMENSIONNEMENT ET ANALYSE
+# PHASE 3: ANALYSE DES CAS DE VOL (RÉINTÉGRÉE)
 # ==============================================================================
-st.header("Phase 3: Dimensionnement et Analyse de l'Influence de $\\rho$")
+st.header("Phase 3: Analyse des Cas de Vol")
+try:
+    excel_data = pd.read_excel('simplified_spectrum_p5.xlsx')
+    a0_values, a1_values = excel_data['a0'].to_numpy(), excel_data['a1'].to_numpy()
+    Pu_factors = np.array([0.9, 0.9, 0.9, 1.0, 0.0, 0.9])
+    if len(excel_data) == len(Pu_factors): Pu_values = Pu_factors * 250 * 1e3
+    else: st.error(f"Incohérence du nombre de cas de vol."); st.stop()
+    
+    K_delta_current = k_deltas[st.session_state.selected_heli]
+    omega_d_bar_val = np.sqrt((st.session_state.e * st.session_state.ms / st.session_state.Ip) + (K_delta_current / (st.session_state.Ip * Omega_rad_s**2)))
+    theta_0_deg = Pu_values * 0.0001 - 6
+    delta_0_deg = np.rad2deg((((Pu_values/(Omega_rad_s*st.session_state.b)) + (K_delta_current * alpha_rad)) / (Omega_rad_s**2*st.session_state.e*st.session_state.ms + K_delta_current)))
+    delta_deg = -np.rad2deg((np.deg2rad(a0_values) * np.deg2rad(a1_values)) / (1 - omega_d_bar_val**2))
+    
+    results = []
+    L_ref = np.linalg.norm(Apt - M)
+    A_zero_global = B + A_local
+    for i in range(len(excel_data)):
+        a0_rad, theta_0_rad, delta_0_rad, delta_rad = map(np.radians, [a0_values[i], theta_0_deg[i], delta_0_deg[i], delta_deg[i]])
+        Rx_stat = np.array([[1,0,0],[0,np.cos(a0_rad),-np.sin(a0_rad)],[0,np.sin(a0_rad),np.cos(a0_rad)]])
+        Ry_stat = np.array([[np.cos(theta_0_rad),0,-np.sin(theta_0_rad)],[0,1,0],[np.sin(theta_0_rad),0,np.cos(theta_0_rad)]])
+        Rz_stat = np.array([[np.cos(delta_0_rad),-np.sin(delta_0_rad),0],[np.sin(delta_0_rad),np.cos(delta_0_rad),0],[0,0,1]])
+        R_stat_total = Rx_stat @ Ry_stat @ Rz_stat
+        Astat = (R_stat_total @ (A_zero_global - B)) + B
+        L0 = np.linalg.norm(Astat - M)
+        DeltaL0_mm = (L0 - L_ref) * 1000
+        Rz_dyn = np.array([[np.cos(delta_rad),-np.sin(delta_rad),0],[np.sin(delta_rad),np.cos(delta_rad),0],[0,0,1]])
+        Adyn = (Rz_dyn @ (Astat - B)) + B
+        L1 = np.linalg.norm(Adyn - M)
+        DeltaL_mm = (L1 - L0) * 1000
+        results.append({"Cas de vol": excel_data['FlightCase'][i], "δ0 (°)": delta_0_deg[i], "δ (°)": delta_deg[i], "ΔL0 (mm)": DeltaL0_mm, "ΔL (mm)": DeltaL_mm})
+    results_df = pd.DataFrame(results)
+
+    with st.expander("Démonstrations des calculs de cas de vol"):
+        st.markdown("Formules générales utilisées pour chaque ligne du tableau :")
+        st.latex(r"\delta_0 = \frac{P_u/(\Omega b) + K_\delta \alpha}{\Omega^2 e m_s + K_\delta} \quad ; \quad \delta = -\frac{a_0 a_1}{1 - \bar{\omega}_\delta^2}")
+        st.latex(r"\Delta L_0 = \| R_{stat}(\dots) (\vec{A}_0-\vec{B}) + \vec{B} - \vec{M} \| - L_{ref}")
+    
+    st.dataframe(results_df.style.format({"δ0 (°)":"{:.2f}","δ (°)":"{:.2f}","ΔL0 (mm)":"{:.2f}","ΔL (mm)":"{:+.2f}"}))
+    delta_L_max_mm_base = results_df['ΔL (mm)'].abs().max()
+
+except FileNotFoundError:
+    st.error("Le fichier 'simplified_spectrum_p5.xlsx' est introuvable.")
+    delta_L_max_mm_base = 0.1 * rhos[st.session_state.selected_heli] * 1000
+except Exception as e:
+    st.error(f"Une erreur est survenue lors du calcul des cas de vol : {e}")
+    delta_L_max_mm_base = 0.1 * rhos[st.session_state.selected_heli] * 1000
+st.markdown("---")
+
+# ==============================================================================
+# PHASE 4: DIMENSIONNEMENT ET ANALYSE
+# ==============================================================================
+st.header("Phase 4: Dimensionnement et Analyse de l'Influence de $\\rho$")
 c1,c2 = st.columns(2)
+# ... (le code de cette phase reste identique à la version précédente)
+#<editor-fold desc="Phase 4">
 with c1:
-    st.subheader("3.1: Paramètres d'analyse")
+    st.subheader("4.1: Paramètres d'analyse")
     G_mpa = st.number_input("Module de cisaillement, G (MPa)", key='G_mpa')
-    # MODIFIÉ: Valeur par défaut de tau_adm
     tau_adm_mpa = st.number_input("Contrainte admissible, τ_adm (MPa)", format="%.3f", key='tau_adm_mpa')
 with c2:
     L_etude = st.number_input("Longueur d'élastomère L (mm)", key='L_etude')
-
 rho_base = rhos[st.session_state.selected_heli]
 K_delta_req_base = k_deltas[st.session_state.selected_heli]
-delta_L_max_mm_base = 0.1 * rho_base * 1000 
-
-# ... (Le reste du code pour les graphiques de la Phase 3 reste inchangé)
-#<editor-fold desc="Phase 3 Analysis and Plots">
+with st.expander("Démonstration Mathématique de l'Influence de Rho"):
+    st.markdown("##### Fonctions de base")
+    st.latex(r"K_1(\rho) = K_\delta / \rho^2 \quad ; \quad F_{max}(\rho) \propto 1/\rho")
+    st.markdown("##### Résolution pour les diamètres (Modèle Logarithmique)")
+    st.latex(r"d_{int}(\rho) = \frac{F_{max}(\rho)}{\pi L \tau_{adm}}")
+    st.latex(r"K_1(\rho) = \frac{2 \pi G L}{\ln(D_{ext} / d_{int})} \implies D_{ext}(\rho) = d_{int}(\rho) \cdot \exp\left(\frac{2 \pi G L}{K_1(\rho)}\right)")
+    st.markdown("##### Fonction Volume résultante")
+    st.latex(r"V(\rho) = \frac{\pi L}{4} \left( D_{ext}(\rho)^2 - d_{int}(\rho)^2 \right) \propto \frac{e^{C \cdot \rho^2} - 1}{\rho^2}")
 rho_analyse_values = np.linspace(0.1, 0.2, 100)
 analysis_results = []
 for r in rho_analyse_values:
     K1_req = K_delta_req_base / r**2 / 1000
     delta_L_max = delta_L_max_mm_base * (r / rho_base)
     F_max = delta_L_max * K1_req
-    d_int = F_max / (np.pi * st.session_state.L_etude * st.session_state.tau_adm_mpa)
+    d_int = F_max / (np.pi * st.session_state.L_etude * st.session_state.tau_adm_mpa) if st.session_state.tau_adm_mpa > 0 else 0
     D_ext_log = d_int * np.exp((2*np.pi*st.session_state.G_mpa*st.session_state.L_etude)/K1_req)
     ep_log = (D_ext_log - d_int) / 2
     vol_log = (np.pi/4 * (D_ext_log**2 - d_int**2) * st.session_state.L_etude) / 1000
-    analysis_results.append({ "rho": r, "ep_log": ep_log, "D_ext_log": D_ext_log, "Volume_cm3_log": vol_log})
+    num_moy, den_moy = K1_req + st.session_state.G_mpa*np.pi*st.session_state.L_etude, K1_req - st.session_state.G_mpa*np.pi*st.session_state.L_etude
+    if den_moy > 0:
+        D_ext_moy = d_int * num_moy / den_moy
+        ep_moy = (D_ext_moy - d_int) / 2
+        vol_moy = (np.pi/4 * (D_ext_moy**2 - d_int**2) * st.session_state.L_etude) / 1000
+    else: ep_moy, D_ext_moy, vol_moy = np.nan, np.nan, np.nan
+    analysis_results.append({ "rho": r, "ep_log": ep_log, "D_ext_log": D_ext_log, "Volume_cm3_log": vol_log, "ep_moy": ep_moy, "D_ext_moy": D_ext_moy, "Volume_cm3_moy": vol_moy})
 analysis_df = pd.DataFrame(analysis_results).dropna()
-
-st.subheader("3.2: Graphiques d'influence de $\\rho$")
-if not analysis_df.empty and analysis_df['D_ext_log'].max() > 200:
-    st.warning("Attention : Les dimensions calculées sont très grandes (> 200 mm). Cela est souvent dû à une contrainte admissible (τ_adm) très faible.")
-
+st.subheader("4.2: Graphiques d'influence de $\\rho$")
+if not analysis_df.empty and (analysis_df['D_ext_log'].max() > 200 or analysis_df['ep_log'].max() > 50):
+    st.warning("Attention : Les dimensions calculées sont très grandes. Cela est souvent dû à une contrainte admissible (τ_adm) trop faible.")
 fig_final, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 15), sharex=True)
-ax1.plot(analysis_df['rho'], analysis_df['ep_log'], '-', label=f'{st.session_state.selected_heli}')
-ax2.plot(analysis_df['rho'], analysis_df['D_ext_log'], '-', label=f'{st.session_state.selected_heli}')
-ax3.plot(analysis_df['rho'], analysis_df['Volume_cm3_log'], '-', label=f'{st.session_state.selected_heli}')
+ax1.plot(analysis_df['rho'], analysis_df['ep_log'], 'b-', label='Modèle Logarithmique')
+ax1.plot(analysis_df['rho'], analysis_df['ep_moy'], 'b--', label='Modèle Diamètre Moyen')
+ax2.plot(analysis_df['rho'], analysis_df['D_ext_log'], 'r-', label='Modèle Logarithmique')
+ax2.plot(analysis_df['rho'], analysis_df['D_ext_moy'], 'r--', label='Modèle Diamètre Moyen')
+ax3.plot(analysis_df['rho'], analysis_df['Volume_cm3_log'], 'g-', label='Modèle Logarithmique')
+ax3.plot(analysis_df['rho'], analysis_df['Volume_cm3_moy'], 'g--', label='Modèle Diamètre Moyen')
 ax1.set_ylabel("Épaisseur ep (mm)"); ax1.set_title(f"Impact de ρ (pour L = {st.session_state.L_etude} mm)"); ax1.grid(True); ax1.legend()
 ax2.set_ylabel("Diamètre extérieur D_ext (mm)"); ax2.grid(True); ax2.legend()
 ax3.set_ylabel("Volume d'élastomère (cm³)"); ax3.set_xlabel("Bras de levier, ρ (m)"); ax3.grid(True); ax3.legend()
-for ax, col_name in [(ax1, 'ep_log'), (ax2, 'D_ext_log'), (ax3, 'Volume_cm3_log')]:
-    if not analysis_df.empty:
-        y_min, y_max = analysis_df[col_name].min(), analysis_df[col_name].max()
+for ax, cols in [(ax1, ['ep_log', 'ep_moy']), (ax2, ['D_ext_log', 'D_ext_moy']), (ax3, ['Volume_cm3_log', 'Volume_cm3_moy'])]:
+    if not analysis_df.empty and not analysis_df[cols].isnull().all().all():
+        y_min, y_max = analysis_df[cols].min().min(), analysis_df[cols].max().max()
         margin = (y_max - y_min) * 0.1
         ax.set_ylim(bottom=max(0, y_min - margin), top=y_max + margin)
 fig_final.tight_layout()
 st.pyplot(fig_final)
 #</editor-fold>
 
-# ==============================================================================
-# BOUTON DE SAUVEGARDE
-# ==============================================================================
 st.markdown("---")
 if st.button("Enregistrer la session actuelle", use_container_width=True):
     current_state = {key: st.session_state[key] for key in STATE_KEYS}
