@@ -307,67 +307,100 @@ except Exception as e:
 st.markdown("---")
 
 # ==============================================================================
-# PHASE 4: DIMENSIONNEMENT ET ANALYSE
+# PHASE 4: DIMENSIONNEMENT ET ANALYSE OPTIMALE
 # ==============================================================================
-st.header("Phase 4: Dimensionnement et Analyse de l'Influence de $\\rho$")
-c1,c2 = st.columns(2)
-# ... (le code de cette phase reste identique à la version précédente)
-#<editor-fold desc="Phase 4">
+st.header("Phase 4: Cartographie de Conception Optimale")
+
+# --- PARAMÈTRES D'ENTRÉE (INCHANGÉS) ---
+c1, c2 = st.columns(2)
 with c1:
-    st.subheader("4.1: Paramètres d'analyse")
+    st.subheader("4.1: Paramètres Matériau")
     G_mpa = st.number_input("Module de cisaillement, G (MPa)", key='G_mpa')
     tau_adm_mpa = st.number_input("Contrainte admissible, τ_adm (MPa)", format="%.3f", key='tau_adm_mpa')
 with c2:
-    L_etude = st.number_input("Longueur d'élastomère L (mm)", key='L_etude')
-rho_base = rhos[st.session_state.selected_heli]
+    st.subheader("4.2: Plage d'étude du Diamètre")
+    d_int_min, d_int_max = st.slider(
+        "Plage du diamètre intérieur d_int (mm)",
+        min_value=10, max_value=150, value=(20, 100))
+
+# --- PRÉ-REQUIS POUR LE CALCUL ---
 K_delta_req_base = k_deltas[st.session_state.selected_heli]
-with st.expander("Démonstration Mathématique de l'Influence de Rho"):
-    st.markdown("##### Fonctions de base")
-    st.latex(r"K_1(\rho) = K_\delta / \rho^2 \quad ; \quad F_{max}(\rho) \propto 1/\rho")
-    st.markdown("##### Résolution pour les diamètres (Modèle Logarithmique)")
-    st.latex(r"d_{int}(\rho) = \frac{F_{max}(\rho)}{\pi L \tau_{adm}}")
-    st.latex(r"K_1(\rho) = \frac{2 \pi G L}{\ln(D_{ext} / d_{int})} \implies D_{ext}(\rho) = d_{int}(\rho) \cdot \exp\left(\frac{2 \pi G L}{K_1(\rho)}\right)")
-    st.markdown("##### Fonction Volume résultante")
-    st.latex(r"V(\rho) = \frac{\pi L}{4} \left( D_{ext}(\rho)^2 - d_{int}(\rho)^2 \right) \propto \frac{e^{C \cdot \rho^2} - 1}{\rho^2}")
-rho_analyse_values = np.linspace(0.1, 0.2, 100)
-analysis_results = []
-for r in rho_analyse_values:
-    K1_req = K_delta_req_base / r**2 / 1000
-    delta_L_max = delta_L_max_mm_base * (r / rho_base)
-    F_max = delta_L_max * K1_req
-    d_int = F_max / (np.pi * st.session_state.L_etude * st.session_state.tau_adm_mpa) if st.session_state.tau_adm_mpa > 0 else 0
-    D_ext_log = d_int * np.exp((2*np.pi*st.session_state.G_mpa*st.session_state.L_etude)/K1_req)
-    ep_log = (D_ext_log - d_int) / 2
-    vol_log = (np.pi/4 * (D_ext_log**2 - d_int**2) * st.session_state.L_etude) / 1000
-    num_moy, den_moy = K1_req + st.session_state.G_mpa*np.pi*st.session_state.L_etude, K1_req - st.session_state.G_mpa*np.pi*st.session_state.L_etude
-    if den_moy > 0:
-        D_ext_moy = d_int * num_moy / den_moy
-        ep_moy = (D_ext_moy - d_int) / 2
-        vol_moy = (np.pi/4 * (D_ext_moy**2 - d_int**2) * st.session_state.L_etude) / 1000
-    else: ep_moy, D_ext_moy, vol_moy = np.nan, np.nan, np.nan
-    analysis_results.append({ "rho": r, "ep_log": ep_log, "D_ext_log": D_ext_log, "Volume_cm3_log": vol_log, "ep_moy": ep_moy, "D_ext_moy": D_ext_moy, "Volume_cm3_moy": vol_moy})
-analysis_df = pd.DataFrame(analysis_results).dropna()
-st.subheader("4.2: Graphiques d'influence de $\\rho$")
-if not analysis_df.empty and (analysis_df['D_ext_log'].max() > 200 or analysis_df['ep_log'].max() > 50):
-    st.warning("Attention : Les dimensions calculées sont très grandes. Cela est souvent dû à une contrainte admissible (τ_adm) trop faible.")
-fig_final, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 15), sharex=True)
-ax1.plot(analysis_df['rho'], analysis_df['ep_log'], 'b-', label='Modèle Logarithmique')
-ax1.plot(analysis_df['rho'], analysis_df['ep_moy'], 'b--', label='Modèle Diamètre Moyen')
-ax2.plot(analysis_df['rho'], analysis_df['D_ext_log'], 'r-', label='Modèle Logarithmique')
-ax2.plot(analysis_df['rho'], analysis_df['D_ext_moy'], 'r--', label='Modèle Diamètre Moyen')
-ax3.plot(analysis_df['rho'], analysis_df['Volume_cm3_log'], 'g-', label='Modèle Logarithmique')
-ax3.plot(analysis_df['rho'], analysis_df['Volume_cm3_moy'], 'g--', label='Modèle Diamètre Moyen')
-ax1.set_ylabel("Épaisseur ep (mm)"); ax1.set_title(f"Impact de ρ (pour L = {st.session_state.L_etude} mm)"); ax1.grid(True); ax1.legend()
-ax2.set_ylabel("Diamètre extérieur D_ext (mm)"); ax2.grid(True); ax2.legend()
-ax3.set_ylabel("Volume d'élastomère (cm³)"); ax3.set_xlabel("Bras de levier, ρ (m)"); ax3.grid(True); ax3.legend()
-for ax, cols in [(ax1, ['ep_log', 'ep_moy']), (ax2, ['D_ext_log', 'D_ext_moy']), (ax3, ['Volume_cm3_log', 'Volume_cm3_moy'])]:
-    if not analysis_df.empty and not analysis_df[cols].isnull().all().all():
-        y_min, y_max = analysis_df[cols].min().min(), analysis_df[cols].max().max()
-        margin = (y_max - y_min) * 0.1
-        ax.set_ylim(bottom=max(0, y_min - margin), top=y_max + margin)
-fig_final.tight_layout()
-st.pyplot(fig_final)
-#</editor-fold>
+theta_max_rad = np.nan
+gamma_max = np.nan
+
+if 'results_df' in locals() and not results_df.empty:
+    theta_max_deg = results_df['δ (°)'].abs().max()
+    theta_max_rad = np.radians(theta_max_deg)
+    if st.session_state.G_mpa > 0:
+        gamma_max = st.session_state.tau_adm_mpa / st.session_state.G_mpa
+    else:
+        st.warning("Le module G doit être > 0.")
+else:
+    st.warning("Les résultats des cas de vol (Phase 3) sont requis pour le calcul.")
+
+# --- CALCUL ET GÉNÉRATION DE LA CARTE ---
+st.subheader("4.3: Graphique des Dimensions Optimales (L et ep)")
+
+if not np.isnan(theta_max_rad) and not np.isnan(gamma_max) and gamma_max > 0:
+    # 1. Création de la grille de calcul
+    rho_values = np.linspace(0.1, 0.2, 50)
+    d_int_values = np.linspace(d_int_min, d_int_max, 50)
+    RHO, D_INT = np.meshgrid(rho_values, d_int_values)
+
+    # 2. Calcul de l'épaisseur optimale 'ep' (en mm)
+    # ep = (theta_max * rho) / gamma_max. Ne dépend que de rho.
+    EP = (theta_max_rad * RHO * 1000) / gamma_max # Conversion en mm
+
+    # 3. Calcul de la longueur optimale 'L' (en mm)
+    # K1 = K_delta / rho^2
+    # L = K1 * ln((d_int + 2ep)/d_int) / (2*pi*G)
+    K_delta_Nmm = K_delta_req_base * 1000 # Nm -> Nmm
+    
+    # Terme de raideur linéaire K1 (en N/mm)
+    K1 = K_delta_Nmm / (RHO**2 * 1000**2) # rho est en m, on le veut en mm^2 pour la division
+    
+    # Calcul de L
+    # On ajoute un petit epsilon à D_INT pour éviter le log(1) si EP est nul
+    LOG_TERM = np.log(1 + (2 * EP) / (D_INT + 1e-9))
+    L = K1 * LOG_TERM / (2 * np.pi * G_mpa)
+    
+    # 4. Traçage du graphique
+    fig, ax = plt.subplots(figsize=(12, 9))
+
+    # Courbes de niveau pour la Longueur L
+    contour_L = ax.contour(RHO, D_INT, L, levels=15, cmap='viridis')
+    ax.clabel(contour_L, inline=True, fontsize=9, fmt='L=%.0f mm')
+
+    # Courbes de niveau pour l'Épaisseur ep
+    contour_EP = ax.contour(RHO, D_INT, EP, levels=10, cmap='plasma', linestyles='--')
+    ax.clabel(contour_EP, inline=True, fontsize=9, fmt='ep=%.1f mm')
+
+    ax.set_xlabel("Bras de levier, ρ (m)", fontsize=12)
+    ax.set_ylabel("Diamètre intérieur, d_int (mm)", fontsize=12)
+    ax.set_title("Cartographie de Conception Optimale\n(Lignes pleines: Longueur L, Pointillés: Épaisseur ep)", fontsize=14)
+    ax.grid(True, linestyle=':', alpha=0.6)
+    
+    # Ajout d'une colorbar pour la longueur L pour une meilleure lecture
+    cbar = fig.colorbar(contour_L, ax=ax)
+    cbar.set_label('Longueur L (mm)')
+
+    st.pyplot(fig)
+
+    with st.expander("Comment lire ce graphique ?"):
+        st.markdown("""
+        Ce graphique vous aide à faire des choix de conception :
+        1.  **Choisissez un point de fonctionnement :** Par exemple, vous visez un bras de levier $\rho=0.15$ m et un diamètre intérieur $d_{int}=50$ mm.
+        2.  **Lisez les dimensions requises :**
+            * Regardez la ligne de contour **pleine (verte/jaune)** qui passe par votre point. Elle vous donne la **longueur `L`** nécessaire (ex: L ≈ 80 mm).
+            * Regardez la ligne de contour en **pointillés (rouge/violette)**. Elle vous donne l'**épaisseur `ep`** requise (ex: ep ≈ 4.5 mm).
+
+        * **Analyse des tendances :**
+            * Les lignes d'épaisseur (`ep`) sont verticales : l'épaisseur requise ne dépend que du bras de levier $\rho$.
+            * Pour un $\rho$ donné, si vous augmentez le diamètre intérieur ($d_{int}$), la longueur `L` requise augmente également.
+            * Pour un $d_{int}$ donné, si vous augmentez le bras de levier $\rho$, la longueur `L` requise diminue.
+        """)
+else:
+    st.error("Calcul impossible. Vérifiez les paramètres en entrée et les résultats de la Phase 3.")
 
 st.markdown("---")
 if st.button("Enregistrer la session actuelle", use_container_width=True):
