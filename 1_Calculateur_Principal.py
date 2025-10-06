@@ -20,35 +20,29 @@ def load_helicopter_db():
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {
-            'G5': {'Omega_rpm': 404, 'ms': 40.0, 'Ip': 125.0, 'e': 0.166, 'b': 4, 'coords': {'B': "0.166,0.003,0", 'P': "0.372,0.003,0", 'M': "0.141,0.147,0", 'A_local': "0.203,0.079,0"}},
-            'G2': {'Omega_rpm': 530, 'ms': 23.6, 'Ip': 56.2, 'e': 0.154, 'b': 3, 'coords': {'B': "0.154,0,0", 'P': "0.350,0,0", 'M': "0.130,0.130,0", 'A_local': "0.190,0.060,0"}},
-            'EC120': {'Omega_rpm': 408, 'ms': 35.0, 'Ip': 110.0, 'e': 0.160, 'b': 3, 'coords': {'B': "0.160,0.01,0", 'P': "0.360,0.01,0", 'M': "0.135,0.140,0", 'A_local': "0.195,0.070,0"}},
+            'G5': {'Omega_rpm': 404, 'ms': 40.0, 'Ip': 125.0, 'e': 0.166, 'b': 4, 'f_fuselage': 2.5,
+                   'coords': {'B': "0.166,0.003,0", 'P': "0.372,0.003,0", 'M': "0.141,0.147,0", 'A_local': "0.203,0.079,0"}},
+            'G2': {'Omega_rpm': 530, 'ms': 23.6, 'Ip': 56.2, 'e': 0.154, 'b': 3, 'f_fuselage': 2.2,
+                   'material': {'G_mpa': 1.2, 'phi_deg': 22.0}, 'elastomer': {'L': 120.0, 'd_int': 24.0, 'ep': 10.0},
+                   'coords': {'B': "0.154,0,0", 'P': "0.350,0,0", 'M': "0.130,0.130,0", 'A_local': "0.190,0.060,0"}},
+            'EC120': {'Omega_rpm': 408, 'ms': 35.0, 'Ip': 110.0, 'e': 0.160, 'b': 3, 'f_fuselage': 2.0,
+                      'material': {'G_mpa': 1.3, 'phi_deg': 28.0}, 'elastomer': {'L': 100.0, 'd_int': 28.0, 'ep': 12.0},
+                      'coords': {'B': "0.160,0.01,0", 'P': "0.360,0.01,0", 'M': "0.135,0.140,0", 'A_local': "0.195,0.070,0"}},
         }
 
 HELICOPTER_PARAMS = load_helicopter_db()
 
 def load_sessions():
     try:
-        with open(SESSION_FILE, 'r') as f:
-            return json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
+        with open(SESSION_FILE, 'r') as f: return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError): return {}
 def save_session(state_dict):
     sessions = load_sessions()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sessions[timestamp] = state_dict
-    with open(SESSION_FILE, 'w') as f:
-        json.dump(sessions, f, indent=4)
+    with open(SESSION_FILE, 'w') as f: json.dump(sessions, f, indent=4)
     return timestamp
-
-STATE_KEYS = [
-    'selected_heli', 'Omega_rpm', 'ms', 'Ip', 'e', 'b', 
-    'phi_deg', 'omega_delta_bar', 'f_fuselage',
-    'B_coords', 'P_coords', 'M_coords', 'A_local_coords', 'alpha_deg',
-    'G_mpa', 'tau_adm_mpa', 'L_etude'
-]
-
+STATE_KEYS = ['selected_heli', 'Omega_rpm', 'ms', 'Ip', 'e', 'b', 'phi_deg', 'omega_delta_bar', 'f_fuselage','B_coords', 'P_coords', 'M_coords', 'A_local_coords', 'alpha_deg','G_mpa', 'tau_adm_mpa', 'L_etude']
 if 'initialized' not in st.session_state:
     default_heli = 'G5'
     st.session_state.selected_heli = default_heli
@@ -57,9 +51,9 @@ if 'initialized' not in st.session_state:
     st.session_state.Ip = HELICOPTER_PARAMS[default_heli]['Ip']
     st.session_state.e = HELICOPTER_PARAMS[default_heli]['e']
     st.session_state.b = HELICOPTER_PARAMS[default_heli]['b']
-    st.session_state.phi_deg = 26.0
+    st.session_state.phi_deg = 25.0
     st.session_state.omega_delta_bar = 0.4
-    st.session_state.f_fuselage = 2.5
+    st.session_state.f_fuselage = HELICOPTER_PARAMS[default_heli]['f_fuselage']
     st.session_state.B_coords = HELICOPTER_PARAMS[default_heli]['coords']['B']
     st.session_state.P_coords = HELICOPTER_PARAMS[default_heli]['coords']['P']
     st.session_state.M_coords = HELICOPTER_PARAMS[default_heli]['coords']['M']
@@ -70,34 +64,14 @@ if 'initialized' not in st.session_state:
     st.session_state.L_etude = 80.0
     st.session_state.initialized = True
 
-def show_calculation(label, result_val, unit, generic_formula, numeric_formula, demo_mode):
-    display_val = ""
-    if isinstance(result_val, (int, float)):
-        if abs(result_val) > 1000: display_val = f"{result_val:,.0f}"
-        else:
-            display_val = f"{result_val:.4f}".rstrip('0').rstrip('.')
-            if display_val == "-0": display_val = "0"
-    else: display_val = str(result_val)
-    if demo_mode:
-        with st.container(border=True):
-            st.markdown(f"**{label}**")
-            st.latex(generic_formula)
-            st.markdown("**Application Numérique :**")
-            st.latex(numeric_formula)
-            st.markdown(f"<p style='text-align:right; font-weight:bold; font-size:1.1em;'>Résultat = <font color='#1079bd'>{display_val}</font> {unit}</p>", unsafe_allow_html=True)
-    else:
-        st.metric(label, f"{display_val} {unit}")
-
 def show_comparison_metric(label, values_dict, unit, main_item):
     st.markdown(f"**{label}**")
     cols = st.columns(len(values_dict))
     for i, (heli_name, value) in enumerate(values_dict.items()):
         with cols[i]:
             if heli_name == main_item:
-                with st.container(border=True):
-                    st.metric(label=f"**{heli_name}**", value=f"{value} {unit}")
-            else:
-                st.metric(label=heli_name, value=f"{value} {unit}")
+                with st.container(border=True): st.metric(label=f"**{heli_name}**", value=f"{value} {unit}")
+            else: st.metric(label=heli_name, value=f"{value} {unit}")
 
 def plot_kg_diagram(rotor_params, selected_phi_deg, operating_point, heli_name):
     e, Omega, Ip, ms = rotor_params
@@ -159,6 +133,7 @@ def update_heli_params():
     st.session_state.Ip = params['Ip']
     st.session_state.e = params['e']
     st.session_state.b = params['b']
+    st.session_state.f_fuselage = params.get('f_fuselage', 2.5)
     st.session_state.B_coords = params['coords']['B']
     st.session_state.P_coords = params['coords']['P']
     st.session_state.M_coords = params['coords']['M']
@@ -181,59 +156,73 @@ def load_selected_session():
     if session_key != "-":
         loaded_state = sessions[session_key]
         for key, value in loaded_state.items():
-            if key in st.session_state:
-                st.session_state[key] = value
+            if key in st.session_state: st.session_state[key] = value
 st.sidebar.selectbox("3. Charger une session", session_list, key="session_selector", on_change=load_selected_session)
 
 st.header("Phase 1: Choix du Point de Fonctionnement")
-# ... (le code de la Phase 1 est complet et correct)
-#<editor-fold desc="Phase 1">
 col1, col2, col3 = st.columns([1.5, 2, 2.5])
 with col1:
-    st.subheader("1.1: Paramètres Adimensionnels")
-    phi_deg = st.slider("Angle de perte, $\\phi$ (°)", 15.0, 35.0, key='phi_deg')
-    tan_phi = np.tan(np.radians(st.session_state.phi_deg))
-    st.metric("$\\tan(\\phi)$", f"{tan_phi:.3f}")
-    C_phys = st.session_state.e * st.session_state.ms / st.session_state.Ip
-    omega_delta_bar = st.slider("Fréquence propre, $\\bar{\\omega}_\\delta$", min_value=max(0.2, np.sqrt(C_phys) + 0.001), max_value=0.8, step=0.005, key='omega_delta_bar')
-    f_fuselage = st.number_input("Fréquence fuselage, $f_{fus}$ (Hz)", key='f_fuselage')
-sigma_bar = (tan_phi * (st.session_state.omega_delta_bar**2 - C_phys)) / (2 * st.session_state.omega_delta_bar)
-beat_freq_hz = abs(abs(Omega_rad_s) * (1 - st.session_state.omega_delta_bar)) / (2 * np.pi)
-omega_c_percent = (st.session_state.f_fuselage + (st.session_state.omega_delta_bar * abs(Omega_rad_s) / (2*np.pi))) / (abs(Omega_rad_s) / (2*np.pi)) * 100
-with col2:
-    st.subheader("1.2: Résultats Fréquentiels")
-    if demo_mode: st.write(f"Pour **{st.session_state.selected_heli}**:")
-    st.metric(label=f"$|f_n - f_\\delta|$", value=f"{beat_freq_hz:.2f} Hz")
-    st.metric(label=f"$\\Omega_c$", value=f"{omega_c_percent:.1f} % $\\Omega_n$")
-st.markdown("##### Comparaison des Résultats")
-omega_cs = {}
+    st.subheader("1.1: Paramètres de Conception")
+    phi_deg_design = st.slider("Angle de perte du design, $\\phi$ (°)", 15.0, 35.0, key='phi_deg')
+    omega_delta_bar_design = st.slider("Fréquence propre du design, $\\bar{\\omega}_\\delta$", 0.2, 0.8, step=0.005, key='omega_delta_bar')
+    f_fuselage_design = st.number_input("Fréquence fuselage du design, $f_{fus}$ (Hz)", key='f_fuselage')
+
+# --- NOUVELLE LOGIQUE DE CALCUL DÉCOUPLÉE ---
+omega_cs, k_deltas, k2_deltas, beat_freqs, sigma_bars = {}, {}, {}, {}, {}
 for name, params in HELICOPTER_PARAMS.items():
     heli_omega_rad = abs(params['Omega_rpm'] * np.pi / 30)
-    f_delta_h = (st.session_state.omega_delta_bar * heli_omega_rad) / (2*np.pi)
-    f_nominal_h = heli_omega_rad / (2*np.pi)
-    omega_cs[name] = (st.session_state.f_fuselage + f_delta_h) / f_nominal_h * 100
-show_comparison_metric("Fréquence de croisement $\\Omega_c$ (% $\\Omega_n$)", {k: f"{v:.1f}" for k, v in omega_cs.items()}, "", st.session_state.selected_heli)
-k_deltas, k2_deltas = {}, {}
-for name, params in HELICOPTER_PARAMS.items():
     heli_C = params['e'] * params['ms'] / params['Ip']
-    k_deltas[name] = (params['Ip'] * (params['Omega_rpm']*np.pi/30)**2) * (st.session_state.omega_delta_bar**2 - heli_C)
-    k2_deltas[name] = k_deltas[name] * tan_phi
-show_comparison_metric("Raideur Angulaire $K_\\delta$ (Nm/rad)", {k: f"{v:,.0f}" for k, v in k_deltas.items()}, "", st.session_state.selected_heli)
-show_comparison_metric("Amortissement Angulaire $K_{2\\delta}$ (Nm/rad)", {k: f"{v:,.0f}" for k, v in k2_deltas.items()}, "", st.session_state.selected_heli)
-st.session_state['K_delta_current'] = k_deltas[st.session_state.selected_heli]
+    
+    if name == st.session_state.selected_heli: # Pour le G5, on utilise les sliders
+        omega_delta_bar_heli = st.session_state.omega_delta_bar
+        tan_phi_heli = np.tan(np.radians(st.session_state.phi_deg))
+        k_deltas[name] = (params['Ip'] * (heli_omega_rad**2)) * (omega_delta_bar_heli**2 - heli_C)
+    else: # Pour G2/EC120, on utilise leurs data physiques
+        L, d_int, ep = params['elastomer']['L'], params['elastomer']['d_int'], params['elastomer']['ep']
+        G = params['material']['G_mpa']
+        D_ext = d_int + 2 * ep
+        K1_nm = (2 * np.pi * G * L) / np.log(D_ext / d_int) * 1000
+        h_coords = params['coords']
+        h_B, h_M, h_A_local = (np.array([float(x.strip()) for x in h_coords[c].split(',')]) for c in ['B','M','A_local'])
+        alpha_rad_default = np.radians(3.0)
+        h_Apt = (np.array([[np.cos(alpha_rad_default),-np.sin(alpha_rad_default),0],[np.sin(alpha_rad_default),np.cos(alpha_rad_default),0],[0,0,1]]) @ h_A_local) + h_B
+        rho_h = np.linalg.norm(np.cross(h_Apt - h_B, h_M - h_Apt)) / np.linalg.norm(h_M - h_Apt)
+        k_deltas[name] = K1_nm * rho_h**2
+        omega_delta_bar_heli = np.sqrt(k_deltas[name] / (params['Ip'] * heli_omega_rad**2) + heli_C)
+        tan_phi_heli = np.tan(np.radians(params['material']['phi_deg']))
+
+    # Calculs communs
+    sigma_bars[name] = (tan_phi_heli * (omega_delta_bar_heli**2 - heli_C)) / (2 * omega_delta_bar_heli)
+    beat_freqs[name] = abs(heli_omega_rad * (1 - omega_delta_bar_heli)) / (2 * np.pi)
+    f_delta_h = (omega_delta_bar_heli * heli_omega_rad) / (2*np.pi)
+    f_nominal_h = heli_omega_rad / (2*np.pi)
+    heli_f_fus = params.get('f_fuselage', st.session_state.f_fuselage)
+    omega_cs[name] = (heli_f_fus + f_delta_h) / f_nominal_h * 100
+
+with col2:
+    st.subheader("1.2: Comparaison des Résultats")
+    show_comparison_metric("Fréquence de battement $|f_n - f_\\delta|$", {k: f"{v:.2f}" for k, v in beat_freqs.items()}, "Hz", st.session_state.selected_heli)
+    st.markdown("---")
+    show_comparison_metric("Fréquence de croisement $\\Omega_c$", {k: f"{v:.1f}%" for k, v in omega_cs.items()}, "", st.session_state.selected_heli)
+    st.markdown("---")
+    show_comparison_metric("Amortissement réduit $\\bar{\\sigma}$", {k: f"{v:.2%}" for k, v in sigma_bars.items()}, "", st.session_state.selected_heli)
+
+with st.expander("Formules de Comparaison"):
+    st.latex(r"K_{1,ref} = \frac{2 \pi G_{ref} L_{ref}}{\ln(D_{ext,ref} / d_{int,ref})} \implies K_{\delta, ref} = K_{1,ref} \cdot \rho_{ref}^2")
+    st.latex(r"\bar{\omega}_{\delta, ref} = \sqrt{\frac{K_{\delta, ref}}{I_{p, ref} \Omega_{ref}^2} + C_{phys, ref}}")
+    st.latex(r"|f_n - f_\delta| = \frac{|\Omega(1 - \bar{\omega}_\delta)|}{2\pi} \quad ; \quad \Omega_c = \frac{f_{fus} + (\bar{\omega}_\delta \Omega / 2\pi)}{(\Omega/2\pi)} \quad ; \quad \bar{\sigma} = \frac{\tan(\phi) (\bar{\omega}_\delta^2 - C_{phys})}{2 \bar{\omega}_\delta}")
+
 with col3:
     st.subheader("1.3: Diagramme K-G")
-    fig_kg = plot_kg_diagram((st.session_state.e, abs(Omega_rad_s), st.session_state.Ip, st.session_state.ms), st.session_state.phi_deg, (st.session_state.omega_delta_bar, sigma_bar), st.session_state.selected_heli)
+    fig_kg = plot_kg_diagram((st.session_state.e, abs(Omega_rad_s), st.session_state.Ip, st.session_state.ms), st.session_state.phi_deg, (st.session_state.omega_delta_bar, sigma_bars[st.session_state.selected_heli]), st.session_state.selected_heli)
     st.pyplot(fig_kg)
 st.markdown("---")
-#</editor-fold>
 
+# ... (Le reste du code, Phases 2, 3, etc. est complet et identique à la version précédente)
 st.header("Phase 2: Définition Géométrique")
-# ... (le code de la Phase 2 est complet et correct)
-#<editor-fold desc="Phase 2">
 col_geo1, col_geo2 = st.columns(2)
 with col_geo1:
-    st.subheader("2.1: Définition des Points (éditable)")
+    st.subheader("2.1: Définition des Points")
     B_coords = st.text_input("B (global)", key='B_coords')
     P_coords = st.text_input("P (global)", key='P_coords')
     M_coords = st.text_input("M (global)", key='M_coords')
@@ -245,22 +234,25 @@ with col_geo1:
         st.error("Format de coordonnées invalide."); st.stop()
     alpha_rad = np.radians(st.session_state.alpha_deg)
     Apt = (np.array([[np.cos(alpha_rad),-np.sin(alpha_rad),0],[np.sin(alpha_rad),np.cos(alpha_rad),0],[0,0,1]]) @ A_local) + B
+
     st.markdown("##### Comparaison Géométrique")
     rhos, k1s = {}, {}
     for name, params in HELICOPTER_PARAMS.items():
         h_coords = params['coords']
         h_B, h_M, h_A_local = (np.array([float(x.strip()) for x in h_coords[c].split(',')]) for c in ['B','M','A_local'])
+        # On utilise l'alpha du slider pour une comparaison "toutes choses égales par ailleurs"
         h_Apt = (np.array([[np.cos(alpha_rad),-np.sin(alpha_rad),0],[np.sin(alpha_rad),np.cos(alpha_rad),0],[0,0,1]]) @ h_A_local) + h_B
         rhos[name] = np.linalg.norm(np.cross(h_Apt - h_B, h_M - h_Apt)) / np.linalg.norm(h_M - h_Apt)
         k1s[name] = k_deltas[name] / rhos[name]**2 / 1000 if rhos[name] > 0 else 0
     show_comparison_metric("Bras de levier $\\rho$", {k: f"{v:.3f}" for k, v in rhos.items()}, "m", st.session_state.selected_heli)
     show_comparison_metric("Raideur Linéaire $K_1$", {k: f"{v:,.0f}" for k, v in k1s.items()}, "N/mm", st.session_state.selected_heli)
+
 with col_geo2:
     st.subheader("2.2: Visualisation")
     fig_geo = plot_geometry(B, P, B + A_local, Apt, M)
     st.pyplot(fig_geo)
 st.markdown("---")
-#</editor-fold>
+
 
 # ==============================================================================
 # PHASE 3: ANALYSE DES CAS DE VOL (RÉINTÉGRÉE)
